@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HR Finding Automation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div class="logo">
+          <div class="logo-icon">👥</div>
+          <div>
+            <h1>HR Finding Automation</h1>
+            <p class="subtitle">Step 1: Find companies · Step 2: Select & find HR</p>
+          </div>
+        </div>
+        <span id="serverStatus" class="status-pill">Checking…</span>
+      </header>
+
+      <div class="layout">
+        <aside>
+          <div class="card">
+            <h2>Step 1 — Find companies</h2>
+            <form id="searchForm">
+              <label for="companyQuery">Company name</label>
+              <input
+                type="text"
+                id="companyQuery"
+                placeholder="e.g. Razorpay, Infosys, TCS"
+                autocomplete="off"
+                required
+              />
+              <p class="hint">Use the official brand name (<strong>Razorpay</strong>, not “razor pay payments”).</p>
+
+              <div class="slider-block">
+                <div class="slider-head">
+                  <label for="companyLimit">Max companies to fetch</label>
+                  <span id="companyLimitLabel" class="count-badge">5</span>
+                </div>
+                <input type="range" id="companyLimit" min="1" max="20" value="5" />
+                <div class="preset-btns" data-target="companyLimit">
+                  <button type="button" data-val="3">3</button>
+                  <button type="button" data-val="5" class="active">5</button>
+                  <button type="button" data-val="10">10</button>
+                  <button type="button" data-val="20">20</button>
+                </div>
+              </div>
+
+              <button type="submit" class="btn-primary" id="submitBtn">🔎 Find companies</button>
+            </form>
+          </div>
+
+          <div class="card" style="margin-top: 14px">
+            <h2>History</h2>
+            <div id="historyList" class="history-list">
+              <div class="welcome" style="padding: 20px">
+                <div class="welcome-icon">📋</div>
+                No searches yet
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main class="card main-panel">
+          <div id="welcomeView" class="welcome">
+            <div class="welcome-icon">🔎</div>
+            <p>
+              <strong>Step 1:</strong> Search LinkedIn for companies and review details.<br />
+              <strong>Step 2:</strong> Select the ones you want, then find HR contacts.
+            </p>
+          </div>
+
+          <div id="jobView" class="hidden">
+            <div class="toolbar">
+              <div>
+                <h3 id="jobTitle" style="margin:0 0 4px">—</h3>
+                <p id="jobMeta" style="margin:0;font-size:0.82rem;color:var(--muted)">—</p>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button type="button" class="btn-secondary hidden" id="exportBtn">⬇ Export CSV</button>
+              </div>
+            </div>
+
+            <div class="step-bar">
+              <span class="step-pill" id="stepPill1">① Find companies</span>
+              <span class="step-pill" id="stepPill2">② Select & find HR</span>
+            </div>
+
+            <div id="failureBanner" class="failure-banner hidden"></div>
+
+            <div class="stats-bar">
+              <div class="stat"><div class="val" id="statCompanies">0</div><div class="lbl">Companies</div></div>
+              <div class="stat"><div class="val" id="statHr" style="color:#137333">0</div><div class="lbl">HR contacts</div></div>
+              <div class="stat"><div class="val" id="statSelected">0</div><div class="lbl">Selected</div></div>
+              <div class="stat"><div class="val" id="statHrTarget">—</div><div class="lbl">HR / company</div></div>
+            </div>
+
+            <div id="step2Panel" class="step2-panel hidden">
+              <h3 style="margin:0 0 10px;font-size:1rem">Step 2 — Find HR for selected companies</h3>
+              <label for="hrPerCompany">HR people per company</label>
+              <div class="slider-block" style="margin-top:6px">
+                <div class="slider-head">
+                  <span id="hrPerCompanyLabel" class="count-badge">10</span>
+                </div>
+                <input type="range" id="hrPerCompany" min="1" max="50" value="10" />
+              </div>
+              <label for="linkedinCookie" style="margin-top:12px">LinkedIn cookie (recommended)</label>
+              <input type="password" id="linkedinCookie" placeholder="Paste li_at cookie" autocomplete="off" />
+              <p class="hint">DevTools → Cookies → linkedin.com → <strong>li_at</strong></p>
+              <button type="button" class="btn-primary" id="findHrBtn" style="margin-top:14px;width:100%">
+                👥 Find HR contacts for selected
+              </button>
+            </div>
+
+            <div class="toolbar">
+              <div class="tabs">
+                <button class="tab active" data-tab="companies">🏢 Companies</button>
+                <button class="tab" data-tab="sheet">📊 HR sheet</button>
+                <button class="tab" data-tab="logs">📜 Activity log</button>
+              </div>
+            </div>
+
+            <div id="tabCompanies">
+              <div id="selectToolbar" class="select-toolbar hidden">
+                <span id="selectHint" style="color:var(--muted);font-size:0.88rem">Check companies to include in Step 2</span>
+                <div class="actions">
+                  <button type="button" class="btn-secondary" id="selectAllBtn">Select all</button>
+                  <button type="button" class="btn-secondary" id="clearSelBtn">Clear</button>
+                </div>
+              </div>
+              <div id="companyCards" class="company-cards"></div>
+            </div>
+
+            <div id="tabSheet" class="hidden">
+              <div class="sheet-wrap">
+                <table class="sheet-table" id="sheetTable">
+                  <thead>
+                    <tr>
+                      <th>Company</th>
+                      <th>Industry</th>
+                      <th>Size</th>
+                      <th>HQ</th>
+                      <th>Company ↗</th>
+                      <th>Person</th>
+                      <th>Title</th>
+                      <th>LinkedIn ↗</th>
+                      <th>Location</th>
+                      <th>Match</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sheetBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="tabLogs" class="hidden">
+              <div id="logPanel" class="log-panel"></div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

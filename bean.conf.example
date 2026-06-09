@@ -1,0 +1,7 @@
+# Copy to bean.conf on KloudBean (or set equivalent values in the dashboard).
+# Monorepo: set PROJECT_DIR to this folder name when deploying from repo root.
+
+NODE_VERSION=20.18.3
+INSTALL_CMD=npm install
+BUILD_CMD=true
+PROJECT_DIR=None

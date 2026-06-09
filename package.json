@@ -1,0 +1,19 @@
+{
+  "name": "hr-finding-automation",
+  "version": "1.0.0",
+  "description": "Find companies on LinkedIn and list HR contacts in a sheet-style dashboard",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2",
+    "puppeteer": "^24.2.0",
+    "uuid": "^11.1.0"
+  }
+}
