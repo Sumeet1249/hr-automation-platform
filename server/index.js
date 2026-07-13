@@ -117,6 +117,14 @@ app.get("/api/jobs/:id/export.csv", (req, res) => {
   res.download(csvPath, `hr-contacts-${req.params.id.slice(0, 8)}.csv`);
 });
 
+app.get("/api/jobs/:id/export.xlsx", (req, res) => {
+  const xlsxPath = join(paths.output, `hr-sheet-${req.params.id}.xlsx`);
+  if (!existsSync(xlsxPath)) {
+    return res.status(404).json({ error: "XLSX not ready yet" });
+  }
+  res.download(xlsxPath, `hr-contacts-${req.params.id.slice(0, 8)}.xlsx`);
+});
+
 app.get("*", (_req, res) => {
   res.sendFile(join(ROOT, "public", "index.html"));
 });

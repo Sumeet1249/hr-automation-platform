@@ -10,7 +10,7 @@ import {
   getSelectedCompanies,
 } from "./db.js";
 import { runCompanyDiscoveryJob, runHrSearchJob } from "./linkedinScraper.js";
-import { exportSheetCsv } from "./export.js";
+import { exportSheetCsv, exportSheetXlsx } from "./export.js";
 
 const listeners = new Map();
 let running = false;
@@ -155,6 +155,7 @@ async function executeHrJob({ id, hrPerCompany, linkedinCookie }) {
               location: person.location,
               snippet: person.snippet,
               matchReason: person.matchReason,
+              matchScore: person.matchScore,
             });
           }
           const job = getJobWithDetails(id);
@@ -166,7 +167,9 @@ async function executeHrJob({ id, hrPerCompany, linkedinCookie }) {
 
     const finalJob = getJobWithDetails(id);
     const csvPath = exportSheetCsv(id, finalJob.companies.filter((c) => c.selected), finalJob.hr_contacts);
+    const xlsxPath = await exportSheetXlsx(id, finalJob.companies.filter((c) => c.selected), finalJob.hr_contacts);
     log(id, "success", "CSV exported", csvPath);
+    log(id, "success", "XLSX exported", xlsxPath);
 
     updateJob(id, {
       status: result.status,
@@ -198,5 +201,9 @@ function mapCompany(c) {
     website: c.website,
     description: c.description,
     followerCount: c.followerCount,
+    employeeCountRange: c.employeeCountRange,
+    foundedYear: c.foundedYear,
+    specialties: c.specialties,
+    linkedinSlug: c.linkedinSlug,
   };
 }

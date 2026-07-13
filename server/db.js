@@ -81,6 +81,31 @@ try {
 } catch {
   /* exists */
 }
+try {
+  db.exec(`ALTER TABLE hr_contacts ADD COLUMN match_score INTEGER DEFAULT 0`);
+} catch {
+  /* exists */
+}
+try {
+  db.exec(`ALTER TABLE companies ADD COLUMN employee_count_range TEXT`);
+} catch {
+  /* exists */
+}
+try {
+  db.exec(`ALTER TABLE companies ADD COLUMN founded_year TEXT`);
+} catch {
+  /* exists */
+}
+try {
+  db.exec(`ALTER TABLE companies ADD COLUMN specialties TEXT`);
+} catch {
+  /* exists */
+}
+try {
+  db.exec(`ALTER TABLE companies ADD COLUMN linkedin_slug TEXT`);
+} catch {
+  /* exists */
+}
 
 export function createJob({ id, companyQuery, companyLimit, hrPerCompany, step = 1 }) {
   const now = new Date().toISOString();
@@ -122,8 +147,8 @@ export function getLogs(jobId) {
 export function addCompany(record) {
   const now = new Date().toISOString();
   const r = db.prepare(
-    `INSERT INTO companies (job_id, name, linkedin_url, industry, company_size, headquarters, website, description, follower_count, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO companies (job_id, name, linkedin_url, industry, company_size, headquarters, website, description, follower_count, employee_count_range, founded_year, specialties, linkedin_slug, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     record.jobId,
     record.name,
@@ -134,6 +159,10 @@ export function addCompany(record) {
     record.website ?? null,
     record.description ?? null,
     record.followerCount ?? null,
+    record.employeeCountRange ?? null,
+    record.foundedYear ?? null,
+    record.specialties ?? null,
+    record.linkedinSlug ?? null,
     now
   );
   return Number(r.lastInsertRowid);
@@ -142,8 +171,8 @@ export function addCompany(record) {
 export function addHrContact(record) {
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO hr_contacts (job_id, company_id, company_name, person_name, job_title, profile_url, location, snippet, match_reason, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO hr_contacts (job_id, company_id, company_name, person_name, job_title, profile_url, location, snippet, match_reason, match_score, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     record.jobId,
     record.companyId ?? null,
@@ -154,6 +183,7 @@ export function addHrContact(record) {
     record.location ?? null,
     record.snippet ?? null,
     record.matchReason ?? null,
+    record.matchScore ?? 0,
     now
   );
 }
@@ -163,7 +193,7 @@ export function getCompanies(jobId) {
 }
 
 export function getHrContacts(jobId) {
-  return db.prepare(`SELECT * FROM hr_contacts WHERE job_id = ? ORDER BY company_name, person_name`).all(jobId);
+  return db.prepare(`SELECT * FROM hr_contacts WHERE job_id = ? ORDER BY match_score DESC, company_name, person_name`).all(jobId);
 }
 
 export function setCompaniesSelected(jobId, companyIds) {

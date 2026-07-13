@@ -29,6 +29,19 @@ const HR_KEYWORDS = [
   "chief people", "hiring manager", "employee relations", "talent partner", "staffing",
   "workforce", "people & culture", "people and culture", "hr executive", "hr generalist",
   "hr lead", "hr director", "talent manager", "campus hiring", "university relations",
+  "talent acquisition specialist", "talent acquisition manager", "ta manager", "ta specialist",
+  "sourcer", "talent sourcer", "recruitment specialist", "recruitment manager", "hr coordinator",
+  "hr assistant", "hr administrator", "hr analyst", "compensation & benefits", "compensation and benefits",
+  "hr operations", "hr ops", "organizational development", "od", "learning & development", "learning and development",
+  "l&d", "training manager", "hr specialist", "hr consultant", "hr advisor", "hr officer",
+  "hr business partner", "hrbp", "global mobility", "employee experience", "ex",
+  "diversity & inclusion", "diversity and inclusion", "d&i", "dei", "talent development",
+  "talent management", "hr director", "vp of hr", "vice president of hr", "hr vp",
+  "chief human resources officer", "chief people officer", "cpo", "people director",
+  "recruiting coordinator", "recruiting manager", "technical recruiter", "it recruiter",
+  "engineering recruiter", "sales recruiter", "executive recruiter", "agency recruiter",
+  "in-house recruiter", "corporate recruiter", "talent acquisition lead", "ta lead",
+  "campus recruiter", "university recruiter", "grad recruiter", "graduate recruiter"
 ];
 
 function isHrRelated(text, strict = true) {
@@ -131,6 +144,7 @@ async function discoverCompanies(page, query, limit, onLog, helpers) {
 
 async function scrapeCompanyDetails(page, company, onLog) {
   onLog("info", "Fetching company details", company.linkedinUrl);
+  const slug = company.linkedinUrl.split("/company/")[1]?.replace(/\/$/, "");
   const fallback = {
     name: company.name,
     linkedinUrl: company.linkedinUrl,
@@ -140,6 +154,10 @@ async function scrapeCompanyDetails(page, company, onLog) {
     website: null,
     description: company.snippet,
     followerCount: null,
+    employeeCountRange: null,
+    foundedYear: null,
+    specialties: null,
+    linkedinSlug: slug,
   };
 
   if (!page) return fallback;
@@ -148,7 +166,6 @@ async function scrapeCompanyDetails(page, company, onLog) {
     await safeGoto(page, company.linkedinUrl, onLog);
     await delay(1500);
 
-    const slug = company.linkedinUrl.split("/company/")[1]?.replace(/\/$/, "");
     const meta = slug ? await fetchCompanyBySlug(slug, company.name) : null;
     if (meta?.snippet) fallback.description = meta.snippet;
     if (meta?.name && !/join linkedin/i.test(meta.name)) fallback.name = meta.name;
@@ -165,6 +182,9 @@ async function scrapeCompanyDetails(page, company, onLog) {
         headquarters: bodyText.match(/Headquarters\s*\n\s*([^\n]+)/i)?.[1] || null,
         website: document.querySelector("a[href^='http']:not([href*='linkedin'])")?.href || null,
         followerCount: bodyText.match(/([\d,.]+[KMB]?)\s*followers/i)?.[1] || null,
+        employeeCountRange: bodyText.match(/Employees\s*\n\s*([^\n]+)/i)?.[1] || null,
+        foundedYear: bodyText.match(/Founded\s*\n\s*([^\n]+)/i)?.[1] || null,
+        specialties: bodyText.match(/Specialties\s*\n\s*([^\n]+)/i)?.[1] || null,
       };
     });
 
@@ -180,11 +200,40 @@ async function scrapeCompanyDetails(page, company, onLog) {
       website: details.website,
       description: details.description || company.snippet,
       followerCount: details.followerCount,
+      employeeCountRange: details.employeeCountRange,
+      foundedYear: details.foundedYear,
+      specialties: details.specialties,
+      linkedinSlug: slug,
     };
   } catch (err) {
     onLog("warn", "Company details partial", err.message);
     return fallback;
   }
+}
+
+function calculateMatchScore(title, snippet, keywords = HR_KEYWORDS) {
+  const text = `${title} ${snippet}`.toLowerCase();
+  let score = 0;
+  let matches = [];
+  
+  for (const keyword of keywords) {
+    if (text.includes(keyword.toLowerCase())) {
+      matches.push(keyword);
+      // Score higher for more specific keywords (longer length)
+      score += keyword.length;
+      // Bonus for HR keywords appearing early in the title
+      if (title.toLowerCase().includes(keyword.toLowerCase())) {
+        score += 50;
+      }
+    }
+  }
+  
+  // Bonus for "Manager", "Director", "Head", "VP", "Chief" in title
+  if (/manager|director|head|vp|chief|lead|senior|sr/.test(title.toLowerCase())) {
+    score += 100;
+  }
+  
+  return { score, matches };
 }
 
 function personFromSearchResult(r, companyName) {
@@ -196,6 +245,8 @@ function personFromSearchResult(r, companyName) {
   const titleMatch =
     r.snippet?.match(/(HR[^.]{0,100}|Recruiter[^.]{0,100}|Talent[^.]{0,100}|Human Resources[^.]{0,100})/i) ||
     r.title?.match(/(HR[^|]{0,80}|Recruiter[^|]{0,80})/i);
+  
+  const { score, matches } = calculateMatchScore(r.title, r.snippet);
 
   return {
     personName: parsedTitle !== "Unknown" ? parsedTitle : slugName,
@@ -203,7 +254,8 @@ function personFromSearchResult(r, companyName) {
     profileUrl,
     location: r.snippet?.match(/([A-Za-z][A-Za-z\s,.]+,\s*[A-Za-z\s]+)/)?.[0]?.trim() || null,
     snippet: r.snippet,
-    matchReason: HR_KEYWORDS.find((k) => combined.toLowerCase().includes(k)) || "Found via HR web search",
+    matchReason: matches.length > 0 ? matches.join(", ") : "Found via HR web search",
+    matchScore: score,
     companyName,
   };
 }
@@ -238,24 +290,23 @@ async function scrapeCompanyPeoplePage(page, companyUrl, companyName, limit, onL
   }
 }
 
-async function findHrPeople(page, companyName, companyUrl, limit, onLog, helpers) {
+async function findHrPeople(page, companyName, companyUrl, limit, onLog, helpers, globalSeen) {
   const people = [];
-  const seen = new Set();
 
   const addPerson = (p, strict) => {
-    if (!p || seen.has(p.profileUrl)) return false;
+    if (!p || globalSeen.has(p.profileUrl)) return false;
     const combined = `${p.personName} ${p.jobTitle} ${p.snippet}`;
     if (strict && !isHrRelated(combined, true)) return false;
     if (!strict && !isHrRelated(combined, false)) return false;
-    seen.add(p.profileUrl);
+    globalSeen.add(p.profileUrl);
     people.push(p);
     return true;
   };
 
   const addFromHrSearch = (r) => {
     const p = personFromSearchResult(r, companyName);
-    if (!p || seen.has(p.profileUrl)) return false;
-    seen.add(p.profileUrl);
+    if (!p || globalSeen.has(p.profileUrl)) return false;
+    globalSeen.add(p.profileUrl);
     people.push(p);
     return true;
   };
@@ -355,6 +406,7 @@ export async function runHrSearchJob({ selectedCompanies, hrPerCompany, linkedin
 
     let totalHr = 0;
     const results = [];
+    const globalSeen = new Set();
 
     for (const company of selectedCompanies) {
       onLog("info", `Searching HR for ${company.name}`, company.linkedin_url || company.linkedinUrl);
@@ -364,7 +416,8 @@ export async function runHrSearchJob({ selectedCompanies, hrPerCompany, linkedin
         company.linkedin_url || company.linkedinUrl,
         hrPerCompany,
         onLog,
-        helpers
+        helpers,
+        globalSeen
       );
       totalHr += people.length;
       results.push({ company, people });
